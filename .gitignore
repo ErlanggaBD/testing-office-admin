@@ -1,0 +1,6 @@
+node_modules/
+uploads/
+output/
+*.pdf
+.env
+.DS_Store
