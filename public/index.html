@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prabu Docs - Generate Invoice, Kwitansi, Surat Jalan</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #f5f5f5; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    h1 { text-align: center; color: #333; margin-bottom: 10px; }
+    .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 14px; }
+    .upload-area { border: 2px dashed #ccc; padding: 40px; text-align: center; border-radius: 8px; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
+    .upload-area:hover { border-color: #007bff; background: #f8f9fa; }
+    .upload-area input { display: none; }
+    .upload-area p { color: #666; margin-top: 10px; }
+    button { background: #007bff; color: white; border: none; padding: 12px 30px; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .result { margin-top: 30px; }
+    .result h2 { font-size: 18px; margin-bottom: 15px; color: #333; }
+    .download-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 10px; background: #fafafa; }
+    .download-card a { color: #007bff; text-decoration: none; font-weight: 500; }
+    .download-card a:hover { text-decoration: underline; }
+    .error { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 5px; margin-top: 20px; }
+    .success { background: #d4edda; color: #155724; padding: 12px; border-radius: 5px; margin-top: 20px; }
+    .po-info { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; }
+    .po-info strong { display: inline-block; width: 150px; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 1s ease-in-out infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Prabu Docs Generator</h1>
+    <p class="subtitle">Generate Invoice, Kwitansi, dan Surat Jalan dari PO PDF</p>
+
+    <div class="upload-area" id="uploadArea">
+      <input type="file" id="poFile" accept="application/pdf" required>
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#007bff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+      <p>Klik atau seret file PO PDF ke sini</p>
+    </div>
+
+    <button id="processBtn" disabled>Proses dan Generate Dokumen</button>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('poFile');
+    const processBtn = document.getElementById('processBtn');
+    const resultDiv = document.getElementById('result');
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#007bff'; });
+    uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = '#ccc'; });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = '#ccc';
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        processBtn.disabled = false;
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      processBtn.disabled = !fileInput.files.length;
+    });
+
+    processBtn.addEventListener('click', async () => {
+      if (!fileInput.files.length) return;
+      const formData = new FormData();
+      formData.append('poFile', fileInput.files[0]);
+
+      processBtn.disabled = true;
+      processBtn.innerHTML = '<span class="spinner"></span>Memproses...';
+      resultDiv.innerHTML = '';
+
+      try {
+        const response = await fetch('/api/process', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Gagal memproses');
+        }
+
+        let html = '<div class="success">Dokumen berhasil di-generate!</div>';
+
+        if (data.po) {
+          html += '<div class="po-info"><strong>Data PO Terdeteksi:</strong><br>';
+          html += `<strong>PO Number:</strong> ${data.po.poNumber || '-'}<br>`;
+          html += `<strong>Tanggal:</strong> ${data.po.poDate || '-'}<br>`;
+          html += `<strong>Klien:</strong> ${data.po.clientName || '-'}<br>`;
+          html += `<strong>Grand Total:</strong> ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(data.po.grandTotal)}<br>`;
+          html += `<strong>Items:</strong> ${data.po.items.length} item</div>`;
+        }
+
+        html += '<div class="result"><h2>Download Dokumen:</h2>';
+        html += `<div class="download-card"><span>Invoice</span><a href="${data.files.invoice}" target="_blank">Download PDF</a></div>`;
+        html += `<div class="download-card"><span>Kwitansi</span><a href="${data.files.kwitansi}" target="_blank">Download PDF</a></div>`;
+        html += `<div class="download-card"><span>Surat Jalan</span><a href="${data.files.suratJalan}" target="_blank">Download PDF</a></div>`;
+        html += '</div>';
+
+        resultDiv.innerHTML = html;
+      } catch (err) {
+        resultDiv.innerHTML = `<div class="error">${err.message}</div>`;
+      } finally {
+        processBtn.disabled = false;
+        processBtn.textContent = 'Proses dan Generate Dokumen';
+      }
+    });
+  </script>
+</body>
+</html>
