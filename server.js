@@ -1,4 +1,5 @@
 const express = require('express');
+const session = require('express-session');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
@@ -8,6 +9,28 @@ const autoTable = require('jspdf-autotable').default;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'prabu-office-secret-change-me',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: false, // set true if using HTTPS
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Auth middleware - redirect to login if not authenticated
+const requireAuth = (req, res, next) => {
+  if (req.session && req.session.authenticated) {
+    return next();
+  }
+  return res.redirect('/login.html');
+};
 
 app.use(express.static('public'));
 app.use('/output', express.static('output'));
@@ -440,8 +463,44 @@ function generateSuratJalan(po) {
   return filename;
 }
 
+// Route: login
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body || {};
+  
+  // Simple hardcoded auth - change these credentials!
+  const ADMIN_USER = process.env.ADMIN_USER || 'admin';
+  const ADMIN_PASS = process.env.ADMIN_PASS || 'prabu2026';
+  
+  if (username === ADMIN_USER && password === ADMIN_PASS) {
+    req.session.authenticated = true;
+    req.session.username = username;
+    return res.json({ success: true, message: 'Login berhasil' });
+  }
+  
+  return res.status(401).json({ error: 'Username atau password salah' });
+});
+
+// Route: logout
+app.post('/api/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Gagal logout' });
+    }
+    res.clearCookie('connect.sid');
+    res.json({ success: true, message: 'Logout berhasil' });
+  });
+});
+
+// Route: check auth status
+app.get('/api/auth/status', (req, res) => {
+  if (req.session && req.session.authenticated) {
+    return res.json({ authenticated: true, username: req.session.username });
+  }
+  return res.json({ authenticated: false });
+});
+
 // Route: upload dan proses PO
-app.post('/api/process', upload.single('poFile'), async (req, res) => {
+app.post('/api/process', requireAuth, upload.single('poFile'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'File PO PDF wajib diupload' });

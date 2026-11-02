@@ -30,9 +30,27 @@
   </style>
 </head>
 <body>
+  <script>
+    (async function checkAuth() {
+      try {
+        const res = await fetch('/api/auth/status');
+        const data = await res.json();
+        if (!data.authenticated) {
+          window.location.href = '/login.html';
+        }
+      } catch (e) {
+        window.location.href = '/login.html';
+      }
+    })();
+  </script>
   <div class="container">
-    <h1>Prabu Docs Generator</h1>
-    <p class="subtitle">Generate Invoice, Kwitansi, dan Surat Jalan dari PO PDF</p>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <div>
+        <h1>Prabu Docs Generator</h1>
+        <p class="subtitle">Generate Invoice, Kwitansi, dan Surat Jalan dari PO PDF</p>
+      </div>
+      <button id="logoutBtn" style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-size: 14px; width: auto;">Logout</button>
+    </div>
 
     <div class="upload-area" id="uploadArea">
       <input type="file" id="poFile" accept="application/pdf" required>
@@ -50,6 +68,18 @@
     const fileInput = document.getElementById('poFile');
     const processBtn = document.getElementById('processBtn');
     const resultDiv = document.getElementById('result');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        try {
+          await fetch('/api/logout', { method: 'POST' });
+          window.location.href = '/login.html';
+        } catch (e) {
+          console.error('Logout failed:', e);
+        }
+      });
+    }
 
     uploadArea.addEventListener('click', () => fileInput.click());
     uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#007bff'; });
